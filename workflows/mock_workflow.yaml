@@ -1,0 +1,9 @@
+name: "Standard SRE Response"
+tasks:
+  - id: "scan_logs"
+    agent: "debugger"
+    payload: {"type": "log_analysis", "path": "/var/log/syslog"}
+  - id: "mitigate_issue"
+    agent: "devops"
+    depends_on: ["scan_logs"]
+    payload: {"type": "cleanup", "target": "temp_files"}

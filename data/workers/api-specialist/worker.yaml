@@ -1,0 +1,147 @@
+# Worker Configuration: API Specialist
+# Especialista em design, desenvolvimento e documentação de APIs
+
+apiVersion: v1
+kind: Worker
+metadata:
+  name: api-specialist
+  version: 1.0.0
+  description: Especialista em design, desenvolvimento e documentação de APIs RESTful e GraphQL
+  category: backend
+  tags:
+    - api
+    - rest
+    - graphql
+    - openapi
+    - swagger
+    - fastapi
+    - flask
+    - express
+    - django-rest
+    - jwt
+    - oauth
+    - testing
+
+spec:
+  expertise:
+    - name: "Design de APIs RESTful"
+      level: expert
+      description: "Design de APIs RESTful seguindo princípios REST, HATEOAS, status codes HTTP apropriados"
+      
+    - name: "GraphQL"
+      level: expert
+      description: "Design de schemas GraphQL, resolvers, mutations, subscriptions, otimização de queries"
+      
+    - name: "Documentação OpenAPI/Swagger"
+      level: expert
+      description: "Criação de especificações OpenAPI 3.0+, documentação interativa com Swagger UI"
+      
+    - name: "Autenticação e Autorização"
+      level: expert
+      description: "Implementação de JWT, OAuth 2.0, OpenID Connect, API Keys, RBAC, ABAC"
+      
+    - name: "Versionamento de APIs"
+      level: advanced
+      description: "Estratégias de versionamento (URL, header, media type), depreciação, migração"
+      
+    - name: "Rate Limiting e Throttling"
+      level: advanced
+      description: "Implementação de rate limiting, throttling, circuit breakers, quota management"
+      
+    - name: "Testing de APIs"
+      level: expert
+      description: "Testes unitários, integração, contrato, performance, fuzzing, Postman, pytest"
+      
+    - name: "Frameworks Populares"
+      level: expert
+      description: "FastAPI, Flask, Django REST Framework, Express.js, NestJS, Spring Boot"
+
+  capabilities:
+    code_generation: true
+    code_review: true
+    architecture_design: true
+    documentation: true
+    testing: true
+    security_audit: true
+    performance_optimization: true
+
+  supported_languages:
+    - python
+    - javascript
+    - typescript
+    - java
+    - go
+    - rust
+
+  supported_frameworks:
+    python:
+      - FastAPI
+      - Flask
+      - Django REST Framework
+      - Tornado
+    javascript:
+      - Express.js
+      - NestJS
+      - Hapi.js
+      - Koa
+    typescript:
+      - NestJS
+      - Express.js
+      - Fastify
+    java:
+      - Spring Boot
+      - JAX-RS
+      - Micronaut
+    go:
+      - Gin
+      - Echo
+      - Fiber
+    rust:
+      - Actix-web
+      - Axum
+      - Rocket
+
+  prompt:
+    file: prompt.txt
+    
+  resources:
+    openapi_spec_template: "templates/openapi-template.yaml"
+    postman_collection_template: "templates/postman-template.json"
+    
+  constraints:
+    - Sempre seguir princípios REST quando aplicável
+    - Priorizar segurança em todas as implementações de autenticação
+    - Documentar todos os endpoints com OpenAPI/Swagger
+    - Incluir testes automatizados para todas as APIs
+    - Considerar rate limiting em APIs públicas
+    
+  best_practices:
+    rest:
+      - Use substantivos para recursos, não verbos
+      - Use plural para coleções (/users, não /user)
+      - Use status codes HTTP apropriados
+      - Implemente paginação para coleções grandes
+      - Use HATEOAS quando apropriado
+      - Versione suas APIs explicitamente
+      
+    graphql:
+      - Design schemas orientados ao cliente
+      - Use mutations para operações que alteram estado
+      - Implemente DataLoader para N+1 problem
+      - Use fragments para reuso
+      - Documente todos os tipos e campos
+      
+    security:
+      - Use HTTPS sempre
+      - Implemente autenticação stateless (JWT)
+      - Valide e sanitize todos os inputs
+      - Use rate limiting
+      - Implemente CORS apropriadamente
+      - Nunca exponha dados sensíveis em URLs
+      
+    testing:
+      - Teste happy path e edge cases
+      - Teste autenticação e autorização
+      - Teste rate limiting
+      - Teste performance sob carga
+      - Use testes de contrato para integrações

@@ -1,0 +1,25 @@
+[project]
+name = "harness"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+    "aioconsole>=0.8.2",
+    "aiofiles>=25.1.0",
+    "aiosqlite>=0.22.1",
+    "httpx>=0.28.1",
+    "openai>=2.32.0",
+    "pydantic>=2.13.1",
+    "pytest>=9.0.3",
+    "pytest-asyncio>=1.3.0",
+    "python-dotenv>=1.2.2",
+    "pyyaml>=6.0.3",
+    "redis>=7.4.0",
+    "rich>=15.0.0",
+]
+
+[tool.uv.workspace]
+members = [
+    "data/missions/wf-LoginAPI_Mission-130929839357728/auth-api",
+]
