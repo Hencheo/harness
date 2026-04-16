@@ -71,8 +71,9 @@ class HarnessWorker:
         
         # 2. Compact if needed
         if self.compactor.should_compact(history, self.llm.estimate_tokens):
-            self.active_sessions[session_id] = await self.compactor.compact(history, self.llm)
-            history = self.active_sessions[session_id]
+            compacted_history = await self.compactor.compact(history, self.llm)
+            self.active_sessions[session_id]["history"] = compacted_history
+            history = compacted_history
 
         # 3. Reasoning (LLM Call)
         # 3. Reasoning Loop (Tool-Reasoning)

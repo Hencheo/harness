@@ -71,5 +71,34 @@ HARNESS_TOOLS: List[Dict[str, Any]] = [
                 "required": ["command"]
             }
         }
+    {
+        "type": "function",
+        "function": {
+            "name": "request_approval",
+            "description": "SOLICITA APROVAÇÃO HUMANA (via Hermes). O Lead DEVE usar isso para validar o código do Tier 3 antes da entrega final.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "reason": {"type": "string", "description": "O que precisa ser aprovado e por que."},
+                    "context": {"type": "string", "description": "Snippet ou resumo do código a ser revisado."}
+                },
+                "required": ["reason"]
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "delegate_task",
+            "description": "Delegate a task to a Tier 3 worker or the QA Auditor. You must specify the agent name and the specific instructions.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "target_agent": {"type": "string", "description": "Name of the agent to delegate to (e.g., worker_react, lead_qa_auditor)."},
+                    "instruction": {"type": "string", "description": "Detailed specs for the agent to execute."}
+                },
+                "required": ["target_agent", "instruction"]
+            }
+        }
     }
 ]

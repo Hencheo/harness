@@ -22,4 +22,5 @@ dependencies = [
 [tool.uv.workspace]
 members = [
     "data/missions/wf-LoginAPI_Mission-130929839357728/auth-api",
+    "data/missions/wf-LoginDashboard_UI-133180969515312/data/missions/wf-LoginDashboard_UI-133180969515312",
 ]

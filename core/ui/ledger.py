@@ -10,12 +10,13 @@ class LedgerManager:
 
     async def start(self):
         print(f"[LEDGER] Initializing Shared Ledger at {self.filename}...")
-        # Clear or initialize file
-        with open(self.filename, "w") as f:
-            f.write("# HARNESS SHARED LEDGER\n\n")
-            f.write("Status actualizado em tempo real pelo Harness Engine.\\n\n")
-            f.write("| Workflow | Task | Status | Result |\n")
-            f.write("|----------|------|--------|--------|\n")
+        # Only initialize if file doesn't exist to preserve history
+        if not os.path.exists(self.filename):
+            with open(self.filename, "w") as f:
+                f.write("# HARNESS SHARED LEDGER\n\n")
+                f.write("Status actualizado em tempo real pelo Harness Engine.\n\n")
+                f.write("| Workflow | Task | Status | Details |\n")
+                f.write("|----------|------|--------|---------|\n")
 
         await self.bus.subscribe("engine.status_updated", self.on_status_updated)
         await self.bus.subscribe("task.completed", self.on_task_completed)

@@ -44,6 +44,7 @@ class HarnessEngine:
         await self.store.set_state("engine", workflow_id, "status", tasks_status)
 
         # Start listening for completion and approval events
+        await self.bus.subscribe("tool.execute", self.on_tool_execute)
         await self.bus.subscribe("task.completed", self.on_task_completed)
         await self.bus.subscribe("approval.response", self.on_approval_response)
         
@@ -98,6 +99,35 @@ class HarnessEngine:
                 await self.store.set_state("engine", wf_id, f"error_{task_id}", "User denied execution")
                 await self._dispatch_available_tasks(wf_id)
 
+    async def on_tool_execute(self, data: Dict[str, Any]):
+        """Intercepts 'request_approval' tool from agents."""
+        payload = data.get("payload", {})
+        command = payload.get("command")
+        if command == "request_approval":
+            correlation_id = data.get("correlation_id")
+            if not correlation_id or ":" not in correlation_id: return
+            
+            args = payload.get("args", {})
+            parts = correlation_id.split(":")
+            wf_id = parts[0]
+            task_id = parts[1]
+            
+            print(f"[ENGINE] [HIERARCHY] Agent {data.get('sender')} requesting Human Approval via Hermes.")
+            if wf_id in self.active_workflows:
+                self.active_workflows[wf_id]["status"][task_id] = TaskStatus.WAITING_APPROVAL
+            
+            await self.bus.publish(
+                topic="approval.requested",
+                sender="engine",
+                payload={
+                    "task_id": task_id, 
+                    "reason": args.get("reason"), 
+                    "context": args.get("context"),
+                    "agent": data.get("sender")
+                },
+                correlation_id=correlation_id
+            )
+
     async def on_task_completed(self, data: Dict[str, Any]):
         correlation_id = data.get("correlation_id")
         if not correlation_id or ":" not in correlation_id:
@@ -106,6 +136,55 @@ class HarnessEngine:
         wf_id, task_id = correlation_id.split(":", 1)
         
         if wf_id in self.active_workflows:
+            wf = self.active_workflows[wf_id]
+            task_def = next((t for t in wf["def"].tasks if t.id == task_id), None)
+            
+            # --- Verification Layer (V) & Ralph Loop ---
+            if task_def and hasattr(task_def, "verification_cmd") and task_def.verification_cmd:
+                print(f"[ENGINE] [LAYER V] Executing deterministic validation for {task_id}: {task_def.verification_cmd}")
+                cmd = task_def.verification_cmd
+                workspace_cwd = wf["workspace"]
+                
+                process = await asyncio.create_subprocess_shell(
+                    cmd,
+                    stdout=asyncio.subprocess.PIPE,
+                    stderr=asyncio.subprocess.PIPE,
+                    cwd=workspace_cwd
+                )
+                stdout, stderr = await process.communicate()
+                
+                if process.returncode != 0:
+                    retries = wf["results"].get(f"{task_id}_retries", 0)
+                    if retries < getattr(task_def, "max_retries", 3):
+                        print(f"[ENGINE] [RALPH LOOP] Validation failed for {task_id}. Re-queueing (Retry {retries+1}/{getattr(task_def, 'max_retries', 3)})")
+                        wf["results"][f"{task_id}_retries"] = retries + 1
+                        
+                        # Add feedback to payload to inform the agent of the error
+                        task_def.payload["validation_feedback"] = f"Command failed: {cmd}\nExit Code: {process.returncode}\nSTDOUT:\n{stdout.decode()}\nSTDERR:\n{stderr.decode()}"
+                        
+                        wf["status"][task_id] = TaskStatus.PENDING
+                        await self.bus.publish(
+                            topic="engine.status_updated",
+                            sender="engine",
+                            payload={"wf_id": wf_id, "task_id": task_id, "status": f"RETRY ({retries+1})"},
+                            correlation_id=correlation_id
+                        )
+                        await self._dispatch_available_tasks(wf_id)
+                        return
+                    else:
+                        print(f"[ENGINE] [RALPH LOOP] Max retries reached for {task_id}. Escalating to FAILED.")
+                        wf["status"][task_id] = TaskStatus.FAILED
+                        wf["results"][task_id] = {"error": "Validation Loop Exhausted", "stdout": stdout.decode(), "stderr": stderr.decode()}
+                        await self.bus.publish(
+                            topic="engine.status_updated",
+                            sender="engine",
+                            payload={"wf_id": wf_id, "task_id": task_id, "status": TaskStatus.FAILED},
+                            correlation_id=correlation_id
+                        )
+                        return
+                else:
+                    print(f"[ENGINE] [LAYER V] Validation passed for {task_id}.")
+
             print(f"[ENGINE] Task completed: {task_id} in workflow {wf_id}")
             self.active_workflows[wf_id]["status"][task_id] = TaskStatus.COMPLETED
             self.active_workflows[wf_id]["results"][task_id] = data["payload"]

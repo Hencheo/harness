@@ -9,6 +9,8 @@ class TaskDef(BaseModel):
     agent: str
     payload: Dict[str, Any] = {}
     depends_on: List[str] = []
+    verification_cmd: Optional[str] = None
+    max_retries: int = 3
 
 class WorkflowDef(BaseModel):
     name: str

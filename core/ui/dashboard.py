@@ -54,7 +54,8 @@ class HarnessDashboard:
 
     async def on_approval_requested(self, data: Dict[str, Any]):
         payload = data.get("payload", {})
-        self.event_log.append(f"[bold red][{datetime.now().strftime('%H:%M:%S')}] APPROVAL REQUIRED: {payload.get('command')}[/]")
+        cmd = str(payload.get('command'))[:100] + ("..." if len(str(payload.get('command'))) > 100 else "")
+        self.event_log.append(f"[bold red][{datetime.now().strftime('%H:%M:%S')}] APPROVAL REQUIRED: {cmd}[/]")
 
     async def on_any_event(self, data: Dict[str, Any]):
         topic = data.get("topic", "unknown")
