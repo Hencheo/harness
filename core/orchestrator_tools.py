@@ -8,7 +8,7 @@ ORCHESTRATOR_TOOLS: List[Dict[str, Any]] = [
         "type": "function",
         "function": {
             "name": "audit_missions",
-            "description": "Lista missões existentes em data/missions para evitar reduntância ou duplicidade de trabalho.",
+            "description": "Lista missões existentes em /home/hencheo/data/missions para evitar reduntância ou duplicidade de trabalho.",
             "parameters": {
                 "type": "object",
                 "properties": {}

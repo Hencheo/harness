@@ -71,6 +71,7 @@ HARNESS_TOOLS: List[Dict[str, Any]] = [
                 "required": ["command"]
             }
         }
+    },
     {
         "type": "function",
         "function": {

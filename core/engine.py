@@ -15,12 +15,14 @@ class TaskStatus(str, Enum):
     COMPLETED = "COMPLETED"
     FAILED = "FAILED"
     WAITING_APPROVAL = "WAITING_APPROVAL"
+    STALLED = "STALLED"
 
 class HarnessEngine:
     def __init__(self, event_bus: EventBus, state_store: StateStore):
         self.bus = event_bus
         self.store = state_store
         self.active_workflows: Dict[str, Dict[str, Any]] = {}
+        self.blocked_tasks: Dict[str, int] = {} # (wf_id, task_id) -> total_failure_count
 
     async def start_workflow(self, workflow_def: WorkflowDef):
         workflow_id = f"wf-{workflow_def.name}-{id(workflow_def)}"
@@ -29,7 +31,7 @@ class HarnessEngine:
         tasks_status = {t.id: TaskStatus.PENDING for t in workflow_def.tasks}
         
         # Create Mission Workspace
-        workspace_path = f"data/missions/{workflow_id}"
+        workspace_path = f"/home/hencheo/data/missions/{workflow_id}"
         os.makedirs(workspace_path, exist_ok=True)
         print(f"[ENGINE] Workspace created: {workspace_path}")
 
@@ -46,6 +48,8 @@ class HarnessEngine:
         # Start listening for completion and approval events
         await self.bus.subscribe("tool.execute", self.on_tool_execute)
         await self.bus.subscribe("task.completed", self.on_task_completed)
+        await self.bus.subscribe("task.failed", self.on_task_failed)
+        await self.bus.subscribe("system.health", self.on_health_ping)
         await self.bus.subscribe("approval.response", self.on_approval_response)
         
         # Trigger initial tasks
@@ -56,6 +60,54 @@ class HarnessEngine:
         """Listens for externally deployed missions via Redis."""
         print("[ENGINE] Mission Listener Active: Monitoring 'harness.mission.deploy'")
         await self.bus.subscribe("harness.mission.deploy", self.on_mission_deploy)
+        
+        # Start the Watchdog to detect stalled agents
+        self._watchdog_task = asyncio.create_task(self._watchdog_loop())
+
+    async def _watchdog_loop(self):
+        """Periodically scans for stalled agents and the tasks assigned to them."""
+        import time
+        while True:
+            try:
+                await asyncio.sleep(30)
+                now = time.time()
+                
+                # Scan all active agents in the store
+                # Note: This requires the store to have a way to list keys, 
+                # but for now we'll check agents we know about from current workflows.
+                agents_to_check = set()
+                for wf in self.active_workflows.values():
+                    for task in wf["def"].tasks:
+                        agents_to_check.add(task.agent)
+                
+                for agent in agents_to_check:
+                    # Fix: get_latest_state takes (agent_id, key)
+                    last_ping_data = await self.store.get_latest_state(agent, "last_ping")
+                    if last_ping_data:
+                        last_ping = last_ping_data["value"]
+                        if (now - float(last_ping)) > 60:
+                            # Agent is STALLED
+                            await self._handle_stalled_agent(agent)
+            except Exception as e:
+                print(f"[ENGINE_WATCHDOG_ERROR] {e}")
+
+    async def _handle_stalled_agent(self, agent_name: str):
+        """Marks all tasks assigned to the stalled agent as STALLED."""
+        for wf_id, wf in self.active_workflows.items():
+            for task_id, status in wf["status"].items():
+                if status in [TaskStatus.DISPATCHED, TaskStatus.RUNNING]:
+                    # Find task def to check agent
+                    task_def = next((t for t in wf["def"].tasks if t.id == task_id), None)
+                    if task_def and task_def.agent == agent_name:
+                        print(f"[ENGINE] [WATCHDOG] Agent {agent_name} stalled. Marking task {task_id} as STALLED.")
+                        wf["status"][task_id] = TaskStatus.STALLED
+                        await self.bus.publish(
+                            topic="engine.status_updated",
+                            sender="engine",
+                            payload={"wf_id": wf_id, "task_id": task_id, "status": TaskStatus.STALLED},
+                            correlation_id=f"{wf_id}:{task_id}"
+                        )
+
 
     async def on_mission_deploy(self, data: Dict[str, Any]):
         """Callback for when a new mission is requested externally."""
@@ -127,6 +179,64 @@ class HarnessEngine:
                 },
                 correlation_id=correlation_id
             )
+
+    async def on_task_failed(self, data: Dict[str, Any]):
+        """Handles explicit task failure reports from agents."""
+        correlation_id = data.get("correlation_id")
+        if not correlation_id or ":" not in correlation_id: return
+
+        wf_id, task_id = correlation_id.split(":", 1)
+        payload = data.get("payload", {})
+        error_msg = payload.get("error", "Unknown error")
+        
+        print(f"[ENGINE] [FAILURE] Task {task_id} reported failure: {error_msg}")
+        
+        if wf_id in self.active_workflows:
+            wf = self.active_workflows[wf_id]
+            
+            # Circuit Breaker Logic
+            block_key = f"{wf_id}:{task_id}"
+            fail_count = self.blocked_tasks.get(block_key, 0) + 1
+            self.blocked_tasks[block_key] = fail_count
+            
+            if fail_count >= 5:
+                print(f"[ENGINE] [CIRCUIT_BREAKER] Task {task_id} BLOCKED after {fail_count} failures.")
+                wf["status"][task_id] = TaskStatus.FAILED
+                await self.bus.publish(
+                    topic="engine.status_updated",
+                    sender="engine",
+                    payload={"wf_id": wf_id, "task_id": task_id, "status": "BLOCKED"},
+                    correlation_id=correlation_id
+                )
+                return
+
+            retries = wf["results"].get(f"{task_id}_retries", 0)
+            
+            if retries < 3:
+                print(f"[ENGINE] [SRE_RETRY] Scheduling retry {retries+1}/3 for {task_id}...")
+                wf["results"][f"{task_id}_retries"] = retries + 1
+                wf["status"][task_id] = TaskStatus.PENDING
+                
+                # Exponential backoff (2^retries seconds)
+                await asyncio.sleep(2 ** retries)
+                await self._dispatch_available_tasks(wf_id)
+            else:
+                print(f"[ENGINE] [DLQ] Task {task_id} exceeded max retries. Moving to Dead Letter Queue.")
+                wf["status"][task_id] = TaskStatus.FAILED
+                await self.bus.publish(
+                    topic="task.dlq",
+                    sender="engine",
+                    payload={"wf_id": wf_id, "task_id": task_id, "error": error_msg, "trace": payload.get("trace")},
+                    correlation_id=correlation_id
+                )
+
+    async def on_health_ping(self, data: Dict[str, Any]):
+        """Updates agent health status in the store."""
+        sender = data.get("sender")
+        payload = data.get("payload", {})
+        # Standardize: agent_id is the agent name, session_id is "global" for heartbeats
+        await self.store.set_state(sender, "global", "last_ping", data.get("timestamp"))
+        await self.store.set_state(sender, "global", "health", payload.get("status"))
 
     async def on_task_completed(self, data: Dict[str, Any]):
         correlation_id = data.get("correlation_id")

@@ -1,6 +1,9 @@
 import asyncio
 import os
 import signal
+import sys
+import importlib.util
+import pathlib
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -12,7 +15,26 @@ from core.llm import HarnessLLM
 from core.worker import HarnessWorker
 from core.mcp_server import ToolRegistry
 
+PID_FILE = "daemon.pid"
+
+def check_lock():
+    if os.path.exists(PID_FILE):
+        try:
+            with open(PID_FILE, "r") as f:
+                old_pid = int(f.read().strip())
+            # Check if process is actually running
+            os.kill(old_pid, 0)
+            print(f"[DAEMON_ERROR] Harness Daemon is already running (PID: {old_pid}).")
+            sys.exit(1)
+        except (OSError, ValueError, ProcessLookupError):
+            # Process not running, stale lock file
+            os.remove(PID_FILE)
+
+    with open(PID_FILE, "w") as f:
+        f.write(str(os.getpid()))
+
 async def run_daemon():
+    check_lock()
     print("[DAEMON] Starting Harness Core Services...")
     
     # 1. Foundation
@@ -86,9 +108,12 @@ async def run_daemon():
     except (asyncio.CancelledError, KeyboardInterrupt):
         print("[DAEMON] Shutdown signal received.")
     finally:
-        sre_task.cancel()
-        devops_task.cancel()
+        print("[DAEMON] Cleaning up workers...")
+        for t in agent_tasks:
+            t.cancel()
         await bus.close()
+        if os.path.exists(PID_FILE):
+            os.remove(PID_FILE)
         print("[DAEMON] Core Offline.")
 
 if __name__ == "__main__":

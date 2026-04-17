@@ -26,8 +26,8 @@ def create_mission(name, tasks_data):
         })
     
     # Save temporary mission file
-    mission_file = f"data/missions/temp_{name.lower().replace(' ', '_')}.json"
-    os.makedirs("data/missions", exist_ok=True)
+    mission_file = f"/home/hencheo/data/missions/temp_{name.lower().replace(' ', '_')}.json"
+    os.makedirs("/home/hencheo/data/missions", exist_ok=True)
     
     with open(mission_file, "w") as f:
         json.dump(mission, f, indent=2)

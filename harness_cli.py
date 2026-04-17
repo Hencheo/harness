@@ -30,7 +30,7 @@ class HermesOrchestrator:
         self.console.print(f"[dim italic]Hermes calling tool: {name}({args})[/]")
         
         if name == "audit_missions":
-            missions_dir = pathlib.Path("data/missions")
+            missions_dir = pathlib.Path("/home/hencheo/data/missions")
             if not missions_dir.exists(): return "No missions directory found."
             missions = [d.name for d in missions_dir.iterdir() if d.is_dir()]
             return f"Existing missions: {missions}"
@@ -44,7 +44,7 @@ class HermesOrchestrator:
                 
         elif name == "inspect_mission":
             m_id = args.get("mission_id")
-            path = pathlib.Path(f"data/missions/{m_id}")
+            path = pathlib.Path(f"/home/hencheo/data/missions/{m_id}")
             if not path.exists(): return f"Mission {m_id} not found."
             files = [f.name for f in path.glob("*")]
             return f"Mission {m_id} contains: {files}. To read a specific file, Hermes must delegate to a Lead."

@@ -48,7 +48,12 @@ class StateStore:
                 results = []
                 for row in rows:
                     item = dict(row)
-                    item["value"] = json.loads(item["value"])
+                    val = item["value"]
+                    if isinstance(val, str):
+                        try:
+                            item["value"] = json.loads(val)
+                        except:
+                            pass # Keep as string if not valid JSON
                     results.append(item)
                 return results
 

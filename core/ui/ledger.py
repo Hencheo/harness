@@ -1,4 +1,5 @@
 import os
+import time
 from typing import Dict, Any, List
 from core.event_bus import EventBus
 
@@ -7,6 +8,7 @@ class LedgerManager:
         self.bus = event_bus
         self.filename = filename
         self.current_state: Dict[str, Dict[str, str]] = {} # wf_id -> {task_id: status}
+        self.agent_health: Dict[str, Dict[str, Any]] = {} # name -> {last_seen: timestamp, status: ALIVE/STALLED}
 
     async def start(self):
         print(f"[LEDGER] Initializing Shared Ledger at {self.filename}...")
@@ -21,6 +23,8 @@ class LedgerManager:
         await self.bus.subscribe("engine.status_updated", self.on_status_updated)
         await self.bus.subscribe("task.completed", self.on_task_completed)
         await self.bus.subscribe("tool.execute", self.on_tool_execute)
+        await self.bus.subscribe("system.health", self.on_health_ping)
+        self.tool_activity: List[str] = []
         self.tool_activity: List[str] = []
 
     async def on_status_updated(self, data: Dict[str, Any]):
@@ -63,11 +67,34 @@ class LedgerManager:
             self.tool_activity.pop(0) # Keep last 10
         self._sync_to_file()
 
+    async def on_health_ping(self, data: Dict[str, Any]):
+        sender = data.get("sender", "unknown")
+        payload = data.get("payload", {})
+        self.agent_health[sender] = {
+            "last_seen": time.time(),
+            "status": "ALIVE",
+            "tier": payload.get("tier", "?")
+        }
+        self._sync_to_file()
+
     def _sync_to_file(self):
         try:
             with open(self.filename, "w") as f:
                 f.write("# HARNESS SHARED LEDGER\n\n")
                 f.write("> **Status**: Monitorado em tempo real.\n\n")
+                
+                # Health Cockpit
+                f.write("## Swarm Physical Health\n\n")
+                f.write("| Agent | Tier | Health | Last Seen |\n")
+                f.write("|-------|------|--------|-----------|\n")
+                now = time.time()
+                for name, info in self.agent_health.items():
+                    last_seen_sec = int(now - info["last_seen"])
+                    health_icon = "🟢" if last_seen_sec < 60 else "🔴"
+                    f.write(f"| {name} | T{info['tier']} | {health_icon} | {last_seen_sec}s ago |\n")
+                f.write("\n")
+
+                f.write("## Workflow Status\n\n")
                 f.write("| Workflow | Task | Status | Details |\n")
                 f.write("|----------|------|--------|---------|\n")
                 

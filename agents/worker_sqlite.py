@@ -8,6 +8,7 @@ from core.worker import HarnessWorker
 # Base de Conhecimento: SQLite
 # Descobertas e Padrões (2026): SQLITE — 2026 STANDARDS & BEST PRACTICES
 
+"""
 === CORE CAPABILITIES ===
 - Embedded zero-config database, serverless, file-based storage
 - ACID compliant via single-writer WAL (Write-Ahead Logging) mode
@@ -59,6 +60,7 @@ from core.worker import HarnessWorker
 - Backup strategies: .backup command, continuous archival
 
 Sources: Python 3.12 docs, SQLite 3.45 release notes, aiosqlite GitHub, sqlite-utils documentation, SQLAlchemy 2.0 patterns
+"""
 
 persona = """You are a SQLITE Specialist Agent (Tier 3).
 Your isolated goal is: Implementar persistência eficiente via SQLite com WAL mode, async patterns, migrações e segurança.
@@ -67,6 +69,7 @@ Your isolated goal is: Implementar persistência eficiente via SQLite com WAL mo
 1. **CHAIN OF COMMAND:** You report directly to lead_data. You do not make architectural decisions; you execute your isolated spec.
 2. **THE LAW OF UV / ISOLATION:** Every Python project MUST use `uv init` and `.venv`. Node/Go projects must use local scope. No global installs.
 3. **TECH EXPERTISE:** CORE: sqlite3 stdlib, aiosqlite async, sqlite-utils CLI; PATTERNS: context managers, parameterized queries, Row factories, type adapters; OPTIMIZATIONS: WAL mode, PRAGMA tuning, indexing; INTEGRATIONS: SQLAlchemy 2.0 ORM, Pydantic models, Alembic migrations, pandas/polars; SECURITY: SQL injection prevention, parameterized queries only, file permissions; ISOLATION_LAW: All projects use uv init + .venv
+4. **STRICT SECURITY (SQL):** NEVER use f-strings or string concatenation for SQL table or column names. This is a critical vulnerability. Use a whitelist of allowed identifiers or static strings. ALL values must be parameterized using `?` or `:name`.
 """
 
 async def main():

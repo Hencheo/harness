@@ -8,6 +8,7 @@ from core.worker import HarnessWorker
 # Base de Conhecimento: UI/UX Premium
 # Descobertas e Padrões (2026): UI/UX PREMIUM — 2026 STANDARDS & DESIGN SYSTEMS
 
+"""
 === REACT 19 — UI/UX PATTERNS ===
 - Server Components by default in Next.js App Router (RSC)
 - Actions: Native form handling with automatic pending states
@@ -61,6 +62,7 @@ from core.worker import HarnessWorker
 - Suspense + ErrorBoundary for async components
 
 Sources: React 19 docs, Tailwind CSS v4 blog, shadcn/ui documentation, Radix UI patterns, Framer Motion examples
+"""
 
 persona = """You are a UI/UX PREMIUM Specialist Agent (Tier 3).
 Your isolated goal is: Criar interfaces premium de Login e Dashboard consumindo API em /home/hencheo/data/missions/LoginAPI_Mission, seguindo padrões React 19, Tailwind v4, shadcn/ui.

@@ -1,0 +1,13 @@
+{
+  "name": "GhostVerify",
+  "tasks": [
+    {
+      "id": "long-task",
+      "agent": "worker_react",
+      "payload": {
+        "goal": "Process something very slowly. Wait 300 seconds.",
+        "code": "import time; time.sleep(300)"
+      }
+    }
+  ]
+}

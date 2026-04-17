@@ -1,0 +1,13 @@
+{
+  "name": "SabotageTest",
+  "tasks": [
+    {
+      "id": "joke-task",
+      "agent": "worker_react",
+      "payload": {
+        "goal": "Import 'pyjokes' and tell a joke. If it fails, report it.",
+        "code": "import pyjokes\nprint(pyjokes.get_joke())"
+      }
+    }
+  ]
+}

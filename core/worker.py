@@ -1,5 +1,6 @@
 import asyncio
 import json
+import traceback
 from typing import Dict, List, Any, Optional
 from core.event_bus import EventBus
 from core.store import StateStore
@@ -20,6 +21,7 @@ class HarnessWorker:
         self.compactor = ContextCompactor()
         self.active_sessions: Dict[str, Dict[str, Any]] = {}
         self.pending_tool_results: Dict[str, asyncio.Future] = {}
+        self._heartbeat_task: Optional[asyncio.Task] = None
 
     async def start(self):
         print(f"[WORKER] Agent {self.name} (Tier {self.tier}) initialized and listening...")
@@ -27,6 +29,9 @@ class HarnessWorker:
         await self.register()
         await self.bus.subscribe(f"agent.{self.name}", self.handle_task)
         await self.bus.subscribe("task.completed", self.on_internal_task_completed)
+        
+        # Phase 1: Start Heartbeat Loop
+        self._heartbeat_task = asyncio.create_task(self._heartbeat_loop())
 
     async def register(self):
         await self.bus.publish(
@@ -45,7 +50,29 @@ class HarnessWorker:
             if not future.done():
                 future.set_result(data.get("payload"))
 
+    async def _heartbeat_loop(self):
+        """Sends periodic pings to the health topic."""
+        while True:
+            try:
+                await self.bus.publish(
+                    topic="system.health",
+                    sender=self.name,
+                    payload={"status": "ALIVE", "tier": self.tier}
+                )
+            except Exception:
+                pass
+            await asyncio.sleep(30)
+
     async def handle_task(self, data: Dict[str, Any]):
+        correlation_id = data.get("correlation_id")
+        try:
+            await self._handle_task_logic(data)
+        except Exception as e:
+            print(f"[WORKER_CRASH] {self.name} failed task {correlation_id}: {e}")
+            error_trace = traceback.format_exc()
+            await self._emit_failure(correlation_id, str(e), error_trace)
+
+    async def _handle_task_logic(self, data: Dict[str, Any]):
         correlation_id = data.get("correlation_id")
         payload = data.get("payload", {})
         workspace_path = payload.get("workspace_path", ".")
@@ -89,6 +116,11 @@ class HarnessWorker:
             print(f"[WORKER] {self.name} (T{self.tier}) thinking about task (Loop)...")
             response = await self.llm.chat_completion(history, tools=available_tools)
             
+            if response is None:
+                print(f"[WORKER_ERROR] {self.name} received empty response from LLM.")
+                await self._emit_failure(correlation_id, "Empty LLM Response", "LLM returned None during chat_completion")
+                break
+
             # 4. Handle Output
             if response.tool_calls:
                 # Store tool calls message in history (required by OpenAI spec)
@@ -166,5 +198,18 @@ class HarnessWorker:
             topic="task.completed",
             sender=self.name,
             payload={"answer": content},
+            correlation_id=correlation_id
+        )
+
+    async def _emit_failure(self, correlation_id: str, error: str, trace: str):
+        """Reports task failure to the event bus."""
+        await self.bus.publish(
+            topic="task.failed",
+            sender=self.name,
+            payload={
+                "error": error,
+                "trace": trace,
+                "type": "RuntimeError"
+            },
             correlation_id=correlation_id
         )
